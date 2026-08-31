@@ -1,0 +1,13 @@
+{{define "error.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <div class="empty">
+    <p class="empty-title">Something went wrong.</p>
+    <p class="empty-sub">While {{.Where}}: {{.Err}}</p>
+    <a class="btn-ghost" href="/">Back to library</a>
+  </div>
+</section>
+
+{{template "footer" .}}
+{{end}}

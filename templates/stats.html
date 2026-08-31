@@ -1,0 +1,121 @@
+{{define "stats.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <a class="back-btn" href="/">&larr; Library</a>
+  <h1 class="page-title">Reading stats</h1>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <p class="stat-label">Currently reading</p>
+      <p class="stat-num">{{.Stats.CurrentlyReading}}</p>
+      <p class="stat-sub">{{.Stats.TotalSeries}} series in library</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">Completed this month</p>
+      <p class="stat-num">{{.Stats.CompletedThisMonth}}</p>
+      <p class="stat-sub">{{.Stats.CompletedTotal}} completed all-time</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">Average rating</p>
+      <p class="stat-num">{{.Stats.AvgRating}}</p>
+      <p class="stat-sub">1&ndash;10 across rated series</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">Reading streak</p>
+      <p class="stat-num">{{.Stats.CurrentStreak}}<span class="stat-unit">d</span></p>
+      <p class="stat-sub">longest: {{.Stats.LongestStreak}}d</p>
+    </div>
+  </div>
+
+  <p class="stat-inline">
+    <span><strong>{{.Stats.ReadThisWeek}}</strong> read this week</span>
+    <span class="sep">&middot;</span>
+    <span><strong>{{.Stats.ReadThisMonth}}</strong> in the last 30 days</span>
+    <span class="sep">&middot;</span>
+    <span><strong>{{.Stats.PlanToRead}}</strong> plan to read</span>
+    <span class="sep">&middot;</span>
+    <span><strong>{{.Stats.OnHold}}</strong> on hold</span>
+    <span class="sep">&middot;</span>
+    <span><strong>{{.Stats.Dropped}}</strong> dropped</span>
+    <span class="sep">&middot;</span>
+    <span><strong>{{printf "%.0f" .Stats.ChaptersTracked}}</strong> chapters tracked</span>
+  </p>
+
+  <div class="breakdown-cols">
+    <section class="breakdown">
+      <h2 class="block-title">By status</h2>
+      {{range .Stats.StatusBreakdown}}
+      <div class="bar-row">
+        <span class="bar-label"><span class="dot {{.Class}}"></span>{{.Label}}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:{{.Pct}}%"></span></span>
+        <span class="bar-count">{{.Count}}</span>
+      </div>
+      {{end}}
+    </section>
+
+    <section class="breakdown">
+      <h2 class="block-title">By type</h2>
+      {{range .Stats.TypeBreakdown}}
+      <div class="bar-row">
+        <span class="bar-label">{{.Label}}</span>
+        <span class="bar-track"><span class="bar-fill bar-fill-type" style="width:{{.Pct}}%"></span></span>
+        <span class="bar-count">{{.Count}}</span>
+      </div>
+      {{end}}
+    </section>
+  </div>
+
+  {{if .Stats.PubBreakdown}}
+  <section class="breakdown">
+    <h2 class="block-title">By publication status</h2>
+    {{range .Stats.PubBreakdown}}
+    <div class="bar-row">
+      <span class="bar-label">{{.Label}}</span>
+      <span class="bar-track"><span class="bar-fill bar-fill-pub" style="width:{{.Pct}}%"></span></span>
+      <span class="bar-count">{{.Count}}</span>
+    </div>
+    {{end}}
+    <p class="muted act-note">Ongoing / complete / hiatus / canceled — the series' publication state, separate from your reading status. Lists and labels are editable on the <a href="/options">options page</a>.</p>
+  </section>
+  {{end}}
+
+  {{if .Stats.TopTags}}
+  <section class="breakdown">
+    <h2 class="block-title">Top tags</h2>
+    <p class="tag-cloud">
+      {{range .Stats.TopTags}}<a class="tag tag-big" href="/?tag={{.Tag}}">{{.Tag}} <span class="tag-n">{{.Count}}</span></a> {{end}}
+    </p>
+  </section>
+  {{end}}
+
+  <section class="breakdown">
+    <h2 class="block-title">Reading activity — last 30 days</h2>
+    <div class="activity">
+      {{range .Stats.Activity}}
+      <span class="act-col" title="{{.Date}}{{if .Count}}: {{.Count}} chapter update(s){{else}}: no reading logged{{end}}">
+        <span class="act-bar{{if eq .Count 0}} act-zero{{end}}" style="height:{{if eq .Count 0}}3{{else}}{{.Pct}}{{end}}%"></span>
+      </span>
+      {{end}}
+    </div>
+    <p class="muted act-note">Each bar is one day (oldest &rarr; newest); height = chapter updates logged that day.</p>
+  </section>
+
+  {{if .Stats.RecentlyCompleted}}
+  <section class="breakdown">
+    <h2 class="block-title">Recently completed</h2>
+    <ul class="recent-list">
+      {{range .Stats.RecentlyCompleted}}
+      <li>
+        <a href="/series/{{.ID}}">{{.Title}}</a>
+        <span class="dot dot-done"></span>
+        {{if .Rating}}<span class="muted">rated {{.Rating}}/10</span>{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
+</section>
+
+{{template "footer" .}}
+{{end}}

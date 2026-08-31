@@ -1,0 +1,35 @@
+# Build artifacts
+/fic-tally
+/fic-tally.exe
+*.exe
+*.exe~
+*.zip
+
+# SQLite database + WAL/SHM sidecars + backups (local data, never commit)
+*.db
+*.db-wal
+*.db-shm
+*.db.bak*
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# User-uploaded cover images (personal library data; the app creates the
+# directory on startup — static/covers/.gitkeep keeps the dir in the repo)
+static/covers/*
+!static/covers/.gitkeep
+
+# Metadata-fetch scratch data (local working files from the helper scripts)
+wc_meta.json
+wc_meta_completed.json
+series_needing_meta.json
+scripts/results.jsonl
+scripts/state.json
+
+# OS
+.DS_Store
+Thumbs.db

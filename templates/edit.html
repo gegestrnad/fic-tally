@@ -1,0 +1,227 @@
+{{define "edit.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <a class="back-btn" href="{{if .IsNew}}/{{else}}/series/{{.Item.ID}}{{end}}">&larr; {{if .IsNew}}Library{{else}}Back to {{.Item.Title}}{{end}}</a>
+
+  <div class="edit-spread">
+    <div class="edit-left">
+      <h1 class="edit-title">{{if .IsNew}}Add series{{else}}Edit: {{.Item.Title}}{{end}}</h1>
+
+      {{if .IsNew}}
+      <p class="muted">Manual entry. Auto-fill from URL is not wired up in this build — paste a source URL for reference only.</p>
+      {{else}}
+      <p class="muted">Metadata changes don't touch your tracking data (status, chapter, notes, rating).</p>
+      {{end}}
+
+      {{if not .IsNew}}
+      <div class="cover-edit">
+        {{/* Drop zone + instant preview: the preview box is a <label for=
+            the file input> so clicking it opens the picker with no JS;
+            app.js adds drag-and-drop, fills the input from a drop, and
+            swaps the preview to the picked image before upload. */}}
+        <div class="cover-drop" id="cover-drop" data-cover-drop="1">
+          <label class="spread-cover spread-cover-sm cover-preview" for="cover" title="Click to pick a cover image — or drag one onto this box">
+            {{if .HasCover}}
+            <img class="cover-img" id="cover-preview-img" src="{{.CoverSrc}}" alt="">
+            {{else}}
+            <span class="cover-mono" id="cover-preview-mono">{{firstChar .Item.Title}}</span>
+            {{end}}
+            <span class="cover-drop-badge" aria-hidden="true">Drop / click</span>
+          </label>
+          <p class="cover-drop-hint">Drop an image on the cover, or click it to browse.</p>
+        </div>
+        <form method="post" action="/series/{{.Item.ID}}/cover" enctype="multipart/form-data" class="cover-form">
+          <input type="file" name="cover" id="cover" accept="image/png,image/jpeg,image/gif,image/webp" required>
+          <button type="submit" class="btn-ghost">Upload cover file</button>
+        </form>
+        <form method="post" action="/series/{{.Item.ID}}/cover/url" class="cover-form cover-form-url">
+          <input class="form-input cover-url-input" type="text" name="cover_url" placeholder="https://example.com/cover.jpg">
+          <button type="submit" class="btn-ghost">Use this URL</button>
+        </form>
+        {{if .HasCover}}
+        <form method="post" action="/series/{{.Item.ID}}/cover/delete" class="inline" onsubmit="return confirm('Remove cover image?');">
+          <button type="submit" class="btn-ghost btn-danger">Remove cover</button>
+        </form>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+
+    <div class="edit-right">
+      <form method="post" action="{{.FormAction}}" class="edit-form">
+        {{if .DupWarning}}
+        <div class="dup-warning">
+          <p class="dup-title">Possible duplicate{{if gt (len .DupWarning) 1}}s{{end}}:</p>
+          <ul class="dup-list">
+            {{range .DupWarning}}
+            <li><a href="/series/{{.ID}}">{{.Title}}</a> <span class="muted">— {{.Reason}}</span></li>
+            {{end}}
+          </ul>
+          <p class="dup-actions">
+            <button type="submit" name="dup_confirm" value="1" class="btn-primary">Save anyway</button>
+            <a class="btn-ghost" href="{{if .IsNew}}/{{else}}/series/{{.Item.ID}}{{end}}">Don't save</a>
+          </p>
+        </div>
+        {{end}}
+
+        {{if not .IsNew}}
+        <input type="hidden" name="cover_url" id="cover_url_hidden" value="{{.Item.CoverURL}}">
+        {{end}}
+
+        <div class="form-row">
+          <label class="form-label" for="title">Title</label>
+          <input id="title" class="form-input form-input-wide" type="text" name="title" value="{{.Item.Title}}" required>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="alt_titles">Alternative titles</label>
+          <textarea id="alt_titles" class="alt-field form-input-wide" name="alt_titles" rows="2" placeholder="One per line — e.g. the original-language or translated title&#10;Akatsuki no Yona">{{joinStr .Item.AltTitles "\n"}}</textarea>
+          <p class="muted">Translations, romanizations, official English titles… one per line. Included in search and duplicate detection.</p>
+        </div>
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="type">Type</label>
+            <select id="type" name="type" class="form-input">
+              {{range .AllTypes}}
+              <option value="{{.Value}}"{{if eq .Value (printf "%s" $.Item.Type)}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="author">Author</label>
+            <input id="author" class="form-input" type="text" name="author" value="{{.Item.Author}}">
+          </div>
+        </div>
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="pub_status">Publication status</label>
+            <select id="pub_status" name="pub_status" class="form-input">
+              <option value="">— unknown —</option>
+              {{range .AllPubStatuses}}
+              <option value="{{.Value}}"{{if eq .Value (printf "%s" $.Item.PubStatus)}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+            <p class="muted">Whether the series itself is still being published (not your reading status).</p>
+          </div>
+          <div>
+            <label class="form-label" for="year">Released year</label>
+            <input id="year" class="form-input ch-input" type="number" name="year" min="1" max="9999" step="1" value="{{if .Item.Year}}{{.Item.Year}}{{end}}" placeholder="—">
+            <p class="muted">Year the series first started releasing.</p>
+          </div>
+        </div>
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="total_chapters">Total chapters</label>
+            <input id="total_chapters" class="form-input ch-input" type="text" name="total_chapters" value="{{floatStr .Item.TotalChapters}}" inputmode="decimal" placeholder="unknown">
+          </div>
+          <div class="form-row-check">
+            <input type="checkbox" id="total_is_known" name="total_is_known"{{if .Item.TotalIsKnown}} checked{{end}}>
+            <label class="check-label" for="total_is_known">Total is known (final)</label>
+            <p class="muted check-sub">Uncheck for an ongoing series; UI shows "210+".</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="tags">Tags</label>
+          {{/* data-tags carries the library's existing tags as a JSON array;
+              app.js reads it to suggest completions for the tag being typed
+              (prefix match, case-insensitive). Pure enhancement — typing
+              comma-separated tags by hand works exactly as before. */}}
+          <div class="tag-field" data-tag-field="1">
+            <input id="tags" class="form-input form-input-wide" type="text" name="tags" value="{{joinStr .Item.Tags ", "}}" placeholder="Comma-separated, e.g. Isekai, Naval, Political" autocomplete="off" data-tags='{{jsonTags .AllTags}}' aria-describedby="tags-help">
+            <div class="tag-ac" id="tag-ac" hidden></div>
+          </div>
+          <p class="muted" id="tags-help">Comma-separated. Existing tags suggest themselves as you type.</p>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="description">Description</label>
+          <textarea id="description" class="notes-field form-input-wide" name="description" rows="5" placeholder="Synopsis or notes about the work...">{{.Item.Description}}</textarea>
+        </div>
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="source_url">Source URL</label>
+            <input id="source_url" class="form-input" type="url" name="source_url" value="{{.Item.SourceURL}}" placeholder="https://...">
+          </div>
+          <div>
+            <label class="form-label" for="parent_id">Part of (parent series)</label>
+            <select id="parent_id" name="parent_id" class="form-input">
+              <option value="">— standalone —</option>
+              {{range .AllSeries}}
+              <option value="{{.ID}}"{{if eq .ID $.Item.ParentID}} selected{{end}}>{{.Title}}</option>
+              {{end}}
+            </select>
+            <p class="muted">Link a spinoff/prequel to its main series; both get a related link on the detail page.</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="cover_url">Cover URL</label>
+          <div class="cover-url-row">
+            {{if not .IsNew}}
+            <input id="cover_url" class="form-input form-input-wide" type="text" name="cover_url_display" value="{{.Item.CoverURL}}" placeholder="https://example.com/cover.jpg or /static/covers/..." readonly>
+            <p class="muted">Set below (upload a file or paste a URL); saving metadata never wipes the cover.</p>
+            {{else}}
+            <input id="cover_url" class="form-input form-input-wide" type="url" name="cover_url" value="{{.Item.CoverURL}}" placeholder="https://...">
+            <p class="muted">Or leave blank to use the initial placeholder; you can upload or paste a cover URL after creating.</p>
+            {{end}}
+          </div>
+        </div>
+
+        {{if .IsNew}}
+        <hr class="divider">
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-input">
+              {{range .AllStatuses}}
+              <option value="{{.Value}}"{{if eq .Value (printf "%s" $.Item.Status)}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="rating">Rating (1-10)</label>
+            <input id="rating" class="form-input ch-input" type="number" name="rating" min="1" max="10" value="{{intStr .Item.Rating}}" placeholder="—">
+          </div>
+        </div>
+
+        <div class="form-row form-row-2col">
+          <div>
+            <label class="form-label" for="chapter_num">Current chapter</label>
+            <input id="chapter_num" class="form-input ch-input" type="text" name="chapter_num" value="{{floatStr .Item.CurrentChapterNum}}" inputmode="decimal" placeholder="0">
+          </div>
+          <div>
+            <label class="form-label" for="chapter_label">Chapter label</label>
+            <input id="chapter_label" class="form-input" type="text" name="chapter_label" value="{{.Item.CurrentChapterLabel}}" placeholder="142.5 / Extra 1 / Vol. 4 Ch. 2">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="notes">Notes / review</label>
+          <textarea id="notes" class="notes-field" name="notes" rows="3" placeholder="Optional first impressions...">{{.Item.Notes}}</textarea>
+        </div>
+        {{end}}
+
+        <hr class="divider">
+
+        {{if not .IsNew}}
+        <input type="hidden" name="created_at" value="{{.Item.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">
+        {{end}}
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">{{if .IsNew}}Add series{{else}}Save metadata{{end}}</button>
+          <a class="btn-ghost" href="{{if .IsNew}}/{{else}}/series/{{.Item.ID}}{{end}}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+{{template "footer" .}}
+{{end}}

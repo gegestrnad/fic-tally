@@ -1,0 +1,310 @@
+{{define "library.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <form class="toolbar" method="get" action="/" id="filter-form">
+    <div class="field search-field">
+      <label for="search">Search</label>
+      <div class="search-row">
+        <input id="search" name="q" type="text" placeholder="Find a series… try #tag (#isekai #romance)" value="{{.Query}}">
+        {{if .Query}}<button type="button" id="search-clear" class="search-clear" title="Clear search">&times;</button>{{end}}
+        <button type="submit" class="btn-search" title="Run search">Search</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="status-filter">Status</label>
+      <select id="status-filter" name="status">
+        <option value="">All</option>
+        {{range .AllStatuses}}
+        <option value="{{.Value}}"{{if eq .Value $.StatusFilter}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label for="type-filter">Type</label>
+      <select id="type-filter" name="type">
+        <option value="">All</option>
+        {{range .AllTypes}}
+        <option value="{{.Value}}"{{if eq .Value $.TypeFilter}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </div>
+    {{if .AllTags}}
+    <div class="field">
+      <label for="tag-filter">Tag</label>
+      <select id="tag-filter" name="tag">
+        {{if gt (len .TagFilters) 1}}<option value="" selected>{{len .TagFilters}} tags selected</option>{{end}}
+        <option value="">All</option>
+        {{range .AllTags}}
+        <option value="{{.}}"{{if eq . $.TagFilter}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </div>
+    {{end}}
+    {{/* The star next to the Sort select saves the current sorting as
+        the server-side default (library settings group) — it then applies
+        on every load, in every browser, until changed. */}}
+    <div class="field">
+      <label for="sort-by">Sort</label>
+      <div class="sort-row">
+        <select id="sort-by" name="sort">
+          <option value="updated"{{if eq "updated" .Sort}} selected{{end}}>Last updated</option>
+          <option value="last_read"{{if eq "last_read" .Sort}} selected{{end}}>Recently active</option>
+          <option value="title"{{if eq "title" .Sort}} selected{{end}}>Title</option>
+          <option value="rating"{{if eq "rating" .Sort}} selected{{end}}>Rating</option>
+        </select>
+        <button type="button" id="sort-default" class="sort-default-btn{{if eq .Sort .SavedSort}} active{{end}}"{{if eq .Sort .SavedSort}} aria-pressed="true"{{else}} aria-pressed="false"{{end}} title="Save this sorting as your default" aria-label="Save this sorting as your default">&#9733;</button>
+      </div>
+    </div>
+    <a class="btn-add" href="/series/new">+ Add series</a>
+    <div class="toolbar-aux">
+      <a href="/import" class="aux-link">Batch import</a>
+      <a href="/export/json" class="aux-link">Export JSON</a>
+      <a href="/export/csv" class="aux-link">Export CSV</a>
+      <a href="/backup" class="aux-link" title="Download a zip with the full database, covers and settings">Full backup</a>
+    </div>
+  </form>
+
+  {{/* ── Saved views ("shelves") ── one-click named shortcuts to a
+      filter+sort combination. Chips are plain links; saving/removing uses
+      native <details> + form POSTs, so the whole row works without
+      JavaScript. The star-asterisk chip marks the shelf whose params
+      exactly reproduce the current view. */}}
+  <div class="shelves" data-shelves="1">
+    <span class="shelves-label">Shelves</span>
+    {{range .Shelves}}<a class="shelf-chip{{if .Active}} active{{end}}" href="{{.Href}}" title="Open this saved view">{{.Name}}</a>{{end}}
+    <details class="shelf-save">
+      <summary title="Save the current filters + sorting as a named shortcut">Save view…</summary>
+      <div class="shelf-pop">
+        <form method="post" action="/shelves/save" class="shelf-form">
+          <input type="text" name="name" placeholder="Name this view — e.g. Reading now" required maxlength="40">
+          <input type="hidden" name="q" value="{{.Query}}">
+          <input type="hidden" name="status" value="{{.StatusFilter}}">
+          <input type="hidden" name="type" value="{{.TypeFilter}}">
+          <input type="hidden" name="tag" value="{{.TagFilter}}">
+          <input type="hidden" name="sort" value="{{.Sort}}">
+          <button type="submit" class="btn-ghost">Save shelf</button>
+        </form>
+        {{if .Shelves}}
+        <div class="shelf-list">
+          {{range .Shelves}}
+          <form method="post" action="/shelves/delete" class="shelf-del">
+            <input type="hidden" name="name" value="{{.Name}}">
+            <input type="hidden" name="back" value="{{if $.BackQuery}}?{{$.BackQuery}}{{end}}">
+            <button type="submit" class="shelf-del-btn" title="Delete shelf {{.Name}}">&times; {{.Name}}</button>
+          </form>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+    </details>
+  </div>
+
+  {{/* Removable chips for the active tag filters (?tag= list and #tag
+      search tokens). Plain links — removing a filter keeps the others
+      and works without JavaScript. */}}
+  {{if .TagChips}}
+  <div class="tag-chips" role="group" aria-label="Active tag filters">
+    <span class="tag-chips-label">Filtering by</span>
+    {{range .TagChips}}<a class="tag-chip" href="{{.Href}}" title="Remove tag filter {{.Label}}">{{.Label}}<span class="tag-chip-x" aria-hidden="true">&times;</span></a>{{end}}
+  </div>
+  {{end}}
+
+  {{/* ── View options: layout switch + progress-ribbon customization ──
+      The "Select multiple" toggle lives first in the row: it reveals the
+      per-card checkboxes and the bulk action bar (both hidden by default —
+      the checkboxes used to sit on every cover full-time). Pure CSS via
+      :has() on the nameless checkbox inside the bulk form below; the label
+      lives here with the other view controls. No JavaScript involved. */}}
+  <div class="viewbar">
+    <div class="bulk-mode-wrap">
+      <label for="bulk-mode" class="bulk-mode-btn" title="Show selection checkboxes on the covers for a bulk status change">Select multiple</label>
+    </div>
+    <div class="layout-switch" role="group" aria-label="Library layout">
+      <span class="viewbar-label">Layout</span>
+      <button type="button" class="layout-btn" data-layout="default">Default</button>
+      <button type="button" class="layout-btn" data-layout="compact">Compact</button>
+      <button type="button" class="layout-btn" data-layout="details">Details</button>
+    </div>
+    <div class="bm-settings">
+      <button type="button" id="bm-toggle" class="bm-toggle-btn" aria-expanded="false" aria-controls="bm-panel">Bookmark style</button>
+      <div id="bm-panel" class="bm-panel" hidden>
+        <p class="bm-panel-title">Progress bookmark</p>
+        <div class="bm-row">
+          <span class="bm-label">Color</span>
+          <span class="bm-swatches">
+            <button type="button" class="bm-swatch" data-color="#a8342a" style="--sw:#a8342a" title="Crimson (default)"></button>
+            <button type="button" class="bm-swatch" data-color="#d9a521" style="--sw:#d9a521" title="Gold"></button>
+            <button type="button" class="bm-swatch" data-color="#6b9080" style="--sw:#6b9080" title="Sage green"></button>
+            <button type="button" class="bm-swatch" data-color="#5b7fbd" style="--sw:#5b7fbd" title="Blue"></button>
+            <button type="button" class="bm-swatch" data-color="#8d78ab" style="--sw:#8d78ab" title="Violet"></button>
+            <input type="color" id="bm-color" class="bm-color-input" value="#a8342a" title="Custom color">
+          </span>
+        </div>
+        <div class="bm-row">
+          <label class="bm-label" for="bm-opacity">Transparency</label>
+          <input type="range" id="bm-opacity" min="15" max="100" step="5" value="100">
+          <span class="bm-val" id="bm-opacity-val">100%</span>
+        </div>
+        <div class="bm-row">
+          <label class="bm-label" for="bm-width">Width</label>
+          <input type="range" id="bm-width" min="3" max="20" step="1" value="11">
+          <span class="bm-val" id="bm-width-val">11px</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-label">Shape</span>
+          <span class="bm-seg" role="group" aria-label="Bookmark shape">
+            <button type="button" class="bm-shape" data-shape="tag" title="Classic bookmark with notched tail">Tag</button>
+            <button type="button" class="bm-shape" data-shape="line" title="Straight line">Line</button>
+            <button type="button" class="bm-shape" data-shape="triangle" title="Pennant tapering to a point">Tri</button>
+            <button type="button" class="bm-shape" data-shape="round" title="Rounded bottom edge">Round</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-label">Side</span>
+          <span class="bm-seg" role="group" aria-label="Bookmark side">
+            <button type="button" class="bm-side" data-side="left">Left</button>
+            <button type="button" class="bm-side" data-side="right">Right</button>
+          </span>
+        </div>
+        <div class="bm-row bm-row-reset">
+          <button type="button" id="bm-reset" class="bm-reset">Reset to default</button>
+        </div>
+      </div>
+    </div>
+    <div class="bm-settings">
+      <button type="button" id="em-toggle" class="bm-toggle-btn" aria-expanded="false" aria-controls="em-panel">Emblem style</button>
+      <div id="em-panel" class="bm-panel" hidden>
+        <p class="bm-panel-title">Completed emblem</p>
+        <p class="bm-panel-hint">Shown when reading status and publication are both completed</p>
+        <div class="bm-row">
+          <span class="bm-label">Show</span>
+          <span class="bm-seg" role="group" aria-label="Show or hide the emblem">
+            <button type="button" class="em-show" data-show="on">On</button>
+            <button type="button" class="em-show" data-show="off">Off</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-label">Style</span>
+          <span class="bm-seg" role="group" aria-label="Emblem style">
+            <button type="button" class="em-style" data-style="seal" title="Colored disc with a checkmark">Seal</button>
+            <button type="button" class="em-style" data-style="check" title="Bare checkmark, no disc">Check</button>
+            <button type="button" class="em-style" data-style="star" title="Colored disc with a star">Star</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-label">Color</span>
+          <span class="bm-swatches">
+            <button type="button" class="em-swatch bm-swatch" data-color="#d9a521" style="--sw:#d9a521" title="Gold (default)"></button>
+            <button type="button" class="em-swatch bm-swatch" data-color="#b8bcc4" style="--sw:#b8bcc4" title="Silver"></button>
+            <button type="button" class="em-swatch bm-swatch" data-color="#a9714b" style="--sw:#a9714b" title="Bronze"></button>
+            <button type="button" class="em-swatch bm-swatch" data-color="#6b9080" style="--sw:#6b9080" title="Sage green"></button>
+            <button type="button" class="em-swatch bm-swatch" data-color="#5b7fbd" style="--sw:#5b7fbd" title="Blue"></button>
+            <input type="color" id="em-color" class="bm-color-input" value="#d9a521" title="Custom color">
+          </span>
+        </div>
+        <div class="bm-row">
+          <label class="bm-label" for="em-size">Size</label>
+          <input type="range" id="em-size" min="16" max="40" step="1" value="26">
+          <span class="bm-val" id="em-size-val">26px</span>
+        </div>
+        <div class="bm-row">
+          <label class="bm-label" for="em-opacity">Transparency</label>
+          <input type="range" id="em-opacity" min="15" max="100" step="5" value="100">
+          <span class="bm-val" id="em-opacity-val">100%</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-label">Corner</span>
+          <span class="bm-seg" role="group" aria-label="Emblem corner">
+            <button type="button" class="em-pos" data-pos="tl" title="Top left">&#8598;</button>
+            <button type="button" class="em-pos" data-pos="tr" title="Top right">&#8599;</button>
+            <button type="button" class="em-pos" data-pos="bl" title="Bottom left">&#8601;</button>
+            <button type="button" class="em-pos" data-pos="br" title="Bottom right (default)">&#8600;</button>
+          </span>
+        </div>
+        <div class="bm-row bm-row-reset">
+          <button type="button" id="em-reset" class="bm-reset">Reset to default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{if not .Cards}}
+  <div class="empty">
+    {{if .Filtered}}
+    <p class="empty-title">No series match.</p>
+    <p class="empty-sub">Try removing a tag chip or clearing the search.</p>
+    <a class="btn-add" href="/">Clear filters</a>
+    {{else}}
+    <p class="empty-title">No series here yet.</p>
+    <p class="empty-sub">Add your first series to start tracking.</p>
+    <a class="btn-add" href="/series/new">+ Add series</a>
+    {{end}}
+  </div>
+  {{else}}
+  {{/* ── Bulk actions ── hidden behind the "Select multiple" toggle in the
+      viewbar until the user opts in. The grid lives inside ONE form; every
+      card has a checkbox (a sibling of the card link, so ticking it never
+      opens the series), and the bar submits the selected ids + chosen
+      status in a single POST. Works entirely without JavaScript: the
+      #bulk-mode checkbox carries no name (so it is never submitted) and
+      CSS :has() reveals the bar + the card checkboxes while it's checked. */}}
+  <form method="post" action="/bulk/status" class="bulk-form" id="bulk-form">
+    <input type="checkbox" id="bulk-mode" class="bulk-mode-input" aria-label="Select multiple series for a bulk status change">
+    <div class="bulk-bar">
+      <span class="bulk-label">With selected:</span>
+      <select id="bulk-status" name="status" aria-label="Status to apply to the selected series">
+        <option value="">— pick a status —</option>
+        {{range .AllStatuses}}
+        <option value="{{.Value}}">{{.Label}}</option>
+        {{end}}
+      </select>
+      <button type="submit" class="btn-ghost bulk-apply">Apply</button>
+      <span class="bulk-count" id="bulk-count" hidden></span>
+      <input type="hidden" name="back" value="{{if .BackQuery}}?{{.BackQuery}}{{end}}">
+    </div>
+    <div class="grid">
+      {{range .Cards}}
+      <div class="card-wrap">
+        <label class="card-check" title="Select {{.Title}} for a bulk action">
+          <input type="checkbox" name="series_ids" value="{{.ID}}" aria-label="Select {{.Title}}">
+        </label>
+        <a class="card" href="/series/{{.ID}}">
+          <div class="cover">
+            {{if .CoverSrc}}
+            <img class="cover-img" src="{{.CoverSrc}}" alt="" loading="lazy">
+            {{else}}
+            <span class="cover-mono">{{firstChar .Title}}</span>
+            {{end}}
+            {{if gt .ProgressPct 0}}
+            <div class="ribbon" style="height:{{.ProgressPct}}%"></div>
+            {{end}}
+            {{template "complete-emblem" .}}
+          </div>
+          <div class="card-body">
+            <p class="card-title">{{.Title}}</p>
+            {{if or .Type .Author .Year .PubStatus}}
+            <p class="card-meta card-extra card-facts">
+              {{typeLabel .Type}}{{if .Author}} · {{.Author}}{{end}}{{if .Year}} · {{.Year}}{{end}}{{if .PubStatus}} · {{pubStatusLabel .PubStatus}}{{end}}
+            </p>
+            {{end}}
+            <p class="card-meta">
+              <span class="dot {{statusDotClass (printf "%s" .Status)}}"></span>{{statusLabel .Status}}
+            </p>
+            <p class="card-meta">{{.ChDisplay}} / {{.TotalDisplay}}{{if gt .ProgressPct 0}} · {{.ProgressPct}}%{{end}}</p>
+            {{if .Rating}}<p class="card-meta card-extra card-rating">&#9733; {{intStr .Rating}}/10</p>{{end}}
+            {{if .AltTitles}}<p class="card-extra card-aka">Aka: {{joinStr .AltTitles " · "}}</p>{{end}}
+            {{if .Tags}}<p class="card-extra card-tags">{{range .Tags}}<span class="mini-tag{{if containsStr $.ActiveTags .}} tag-active{{end}}">{{.}}</span>{{end}}</p>{{end}}
+            {{if .Notes}}<p class="card-extra card-notes">{{.Notes}}</p>{{end}}
+            {{if .UpdatedAbs}}<p class="card-updated" title="Last read {{.UpdatedAbs}}">{{.UpdatedRel}}</p>{{else}}<p class="card-updated">{{.UpdatedRel}}</p>{{end}}
+          </div>
+        </a>
+      </div>
+      {{end}}
+    </div>
+  </form>
+  {{end}}
+</section>
+
+{{template "footer" .}}
+{{end}}

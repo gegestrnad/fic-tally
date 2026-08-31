@@ -1,0 +1,146 @@
+{{- /* layout.html — shared header/footer partials. Go's html/template block
+    inheritance across ParseGlob files doesn't isolate per-page "content"
+    definitions, so we use the simpler partials pattern: each page template
+    is self-contained and includes these two partials. */ -}}
+{{define "header"}}
+<!DOCTYPE html>
+<html lang="en" data-theme="{{.Theme}}"{{with .LayoutAttr}} data-layout="{{.}}"{{end}}{{with .RibbonShapeAttr}} data-ribbon-shape="{{.}}"{{end}}{{with .RibbonSideAttr}} data-ribbon-side="{{.}}"{{end}}{{with .EmblemStyleAttr}} data-emblem-style="{{.}}"{{end}}{{with .EmblemPosAttr}} data-emblem-pos="{{.}}"{{end}}{{with .EmblemHiddenAttr}} data-emblem-hidden="{{.}}"{{end}}>
+{{/* Preference data-* attributes are rendered server-side from the settings
+     store (see app.render): the saved layout / ribbon shape / ribbon side /
+     emblem style / emblem corner / emblem visibility apply even with
+     JavaScript disabled, with zero flash and in every browser that opens
+     the app — prefs follow the server's database, not localStorage. */}}
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Asset URLs carry a ?v= cache-buster. The server also sends
+     Cache-Control: no-cache (see noCache in app.go), so browsers
+     revalidate on every load; the version bump additionally rescues
+     browsers already holding a stale pre-no-cache copy, because a new
+     URL never matches an old cache entry. Bump BOTH v= values whenever
+     app.css or app.js changes. -->
+<title>{{.Title}} — Fic Tally</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Spectral:ital,wght@0,500;0,600;1,400&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+{{/* App icon (the user-supplied Fic Tally mark): browser tab + home-screen
+     shortcut + the logo in the top bar. ?v= busts stale caches — bump it
+     when the file is replaced. */}}
+<link rel="icon" type="image/png" href="/static/img/icon.png?v=1">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png?v=1">
+{{/* PWA manifest: with the icon in place the app becomes installable
+     ("Add to Home Screen" / desktop install) and launches standalone,
+     chromeless — the tracker behaves like a native app on a phone.
+     Served as .json so Go's FileServer sends Content-Type: application/json
+     (Chrome accepts either manifest media type; a bare .webmanifest would
+     arrive as application/octet-stream without extra mime registration). */}}
+<link rel="manifest" href="/static/manifest.json?v=1">
+<meta name="theme-color" content="#15181d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="/static/css/app.css?v=8">
+{{/* Current UI preferences, server-rendered. The inline script below
+     reads this blob pre-paint; app.js reads it again to seed its runtime
+     state. The value is typed template.JS in app.render, so it is
+     inserted verbatim — safe because it is server-validated JSON (enums,
+     #rrggbb colors, bounded numbers) and json.Marshal HTML-escapes
+     <, > and & on top. */}}
+<script type="application/json" id="ft-settings">{{.SettingsJSON}}</script>
+<script>
+(function () {
+  // Apply the server-stored UI preferences before first paint so the
+  // library layout, the customized progress ribbon and the configured
+  // completion emblem don't flash to their defaults on reload. The
+  // data-* attributes are already rendered onto <html> server-side; this
+  // script only carries the CSS custom properties (color / width /
+  // size / opacity), which cannot be templated into a style attribute
+  // (html/template's CSS escaping drops custom properties). Mirrors the
+  // apply logic in static/js/app.js — keep the two in sync.
+  function legacy(key) {
+    // One-time upgrade path: for preference groups the server doesn't
+    // have yet, fall back to the per-browser localStorage prefs saved by
+    // pre-server-settings builds. app.js migrates those prefs into the
+    // server settings and deletes the keys, so this fallback stops
+    // matching after the first post-upgrade load.
+    try {
+      var v = JSON.parse(localStorage.getItem(key));
+      return (v && typeof v === 'object') ? v : null;
+    } catch (e) { return null; }
+  }
+  try {
+    var de = document.documentElement;
+    var s = {};
+    try { s = JSON.parse(document.getElementById('ft-settings').textContent) || {}; }
+    catch (e) { s = {}; }
+    if (!s.layout) {
+      var l = null;
+      try { l = localStorage.getItem('fic-tally:layout'); } catch (e) {}
+      if (l === 'compact' || l === 'details') de.setAttribute('data-layout', l);
+    }
+    var c = s.ribbon || legacy('fic-tally:ribbon');
+    if (c) {
+      if (c.color) de.style.setProperty('--bm-color', String(c.color));
+      if (c.opacity !== null && c.opacity !== undefined && c.opacity !== '' && c.opacity !== 1)
+        de.style.setProperty('--bm-opacity', String(c.opacity));
+      if (c.width) de.style.setProperty('--bm-width', c.width + 'px');
+    }
+    var e = s.emblem || legacy('fic-tally:emblem');
+    if (e) {
+      if (e.color) de.style.setProperty('--em-color', String(e.color));
+      // Size/opacity are only pinned when customized (≠ default), so the
+      // stylesheet can auto-shrink the emblem on compact cards.
+      if (e.size && e.size !== 26) de.style.setProperty('--em-size', e.size + 'px');
+      if (e.opacity !== null && e.opacity !== undefined && e.opacity !== '' && e.opacity !== 1)
+        de.style.setProperty('--em-opacity', String(e.opacity));
+    }
+  } catch (err) { /* preferences are optional */ }
+})();
+</script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <a href="/" class="brand-link"><img class="brand-logo" src="/static/img/icon.png?v=1" alt="" width="24" height="24"><span class="brand-name">Fic Tally</span></a>
+  </div>
+  <nav class="view-tabs">
+    <a class="nav-link" href="/">Library</a>
+    <a class="nav-link" href="/stats">Stats</a>
+    <a class="nav-link" href="/import">Import</a>
+    <a class="nav-link" href="/options" title="Edit the dropdown option lists — statuses, types, publication statuses">Options</a>
+    <a class="nav-link" href="/series/new">+ Add</a>
+  </nav>
+  <form class="theme-form" method="post" action="/theme">
+    <input type="hidden" name="theme" value="{{if eq .Theme "dark"}}light{{else}}dark{{end}}">
+    <input type="hidden" name="back" value="">
+    <button id="theme-toggle" type="submit" aria-label="Toggle light and dark theme" title="Toggle theme">◐</button>
+  </form>
+</div>
+
+<main>
+{{end}}
+
+{{define "footer"}}
+</main>
+
+<script src="/static/js/app.js?v=7" defer></script>
+</body>
+</html>
+{{end}}
+
+{{- /* complete-emblem renders the small seal shown on a cover when the
+    series is finished BOTH ways: the user's reading status is "completed"
+    AND the publication status is "completed" (nothing left to read, nothing
+    left to publish). Call with the item (EntryWithSeries or a card view) as
+    dot — it needs .Status (Entry) and .PubStatus (Series).
+    Which icon shows (check or star) is decided client-side by CSS on
+    html[data-emblem-style]; both SVGs are rendered so switching is instant. */ -}}
+{{define "complete-emblem"}}
+{{if and (eq (printf "%s" .Status) "completed") (eq (printf "%s" .PubStatus) "completed")}}
+<span class="emblem-complete" role="img" aria-label="Fully completed — reading and publication both finished" title="Fully completed — reading and publication both finished">
+<svg class="em-icon-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l4.5 4.5L19.5 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg class="em-icon-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.85 6.1 6.7.85-4.95 4.55 1.3 6.6L12 17.5l-5.9 3.2 1.3-6.6L2.45 9.55l6.7-.85z" fill="currentColor"/></svg>
+</span>
+{{end}}
+{{end}}

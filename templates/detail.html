@@ -1,0 +1,179 @@
+{{define "detail.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <a class="back-btn" href="/">&larr; Library</a>
+
+  <div class="spread">
+    <div class="spread-left">
+      <div class="spread-cover">
+        {{if .HasCover}}
+        <img class="cover-img" src="{{.CoverSrc}}" alt="">
+        {{else}}
+        <span class="cover-mono">{{firstChar .Item.Title}}</span>
+        {{end}}
+        {{if gt .ProgressPct 0}}
+        <div class="ribbon" style="height:{{.ProgressPct}}%"></div>
+        {{end}}
+        {{template "complete-emblem" .Item}}
+      </div>
+      <p class="spread-type">{{typeLabel .Item.Type}}</p>
+      <p class="spread-source">
+        {{if .Item.SourceURL}}<a href="{{.Item.SourceURL}}" target="_blank" rel="noopener">Source &nearr;</a>{{else}}<span class="muted">No source</span>{{end}}
+      </p>
+    </div>
+
+    <div class="spread-right">
+      <h1 class="detail-title">{{.Item.Title}}</h1>
+      {{if .Item.AltTitles}}
+      <p class="detail-aka muted">Also known as: {{range $i, $a := .Item.AltTitles}}{{if $i}} · {{end}}<span class="aka-item">{{$a}}</span>{{end}}</p>
+      {{end}}
+      <p class="detail-byline">
+        <span class="dot {{statusDotClass (printf "%s" .Item.Status)}}"></span>
+        {{statusLabel .Item.Status}}{{if .Item.Author}} · by {{.Item.Author}}{{end}}
+        {{if or .Item.PubStatus .Item.Year}} · {{end}}{{if .Item.PubStatus}}{{pubStatusLabel .Item.PubStatus}}{{if .Item.Year}} ({{end}}{{end}}{{if .Item.Year}}{{if not .Item.PubStatus}}first released {{end}}{{.Item.Year}}{{if .Item.PubStatus}}){{end}}{{end}}
+      </p>
+
+      {{/* ────────────── Continue reading + chapter controls ────────────── */}}
+      <div class="continue-block">
+        <form class="progress-form" method="post" action="/series/{{.Item.ID}}/progress">
+          <p class="ch-label">Continue reading</p>
+          <div class="continue-row">
+            <span class="continue-arrow">&rarr;</span>
+            <span class="continue-target">{{if .Item.BookmarkLabel}}{{.Item.BookmarkLabel}}{{else}}Chapter {{.ChDisplay}}{{end}}</span>
+            {{if .Item.BookmarkURL}}
+            <a class="btn-primary" href="{{.Item.BookmarkURL}}" target="_blank" rel="noopener">Continue reading &rarr;</a>
+            {{else}}
+            <span class="muted" title="Set a bookmark URL to enable Continue reading">No bookmark set</span>
+            {{end}}
+          </div>
+          <div class="chapter-row">
+            <label for="chapter-set" class="ch-label">Chapter</label>
+            <input id="chapter-set" class="ch-input" type="text" name="chapter_set" value="{{floatStr .Item.CurrentChapterNum}}" inputmode="decimal" placeholder="0">
+            <span class="ch-of">/ {{.TotalDisplay}}</span>
+            <button class="btn-plus" type="submit" name="btn_plus" value="1" title="Advance one chapter">+1</button>
+            <button class="btn-ghost" type="submit" name="btn_set" value="1" title="Set chapter to typed value">Set</button>
+            <button class="btn-ghost btn-clear" type="submit" name="btn_clear_num" value="1" title="Clear numeric chapter">Clear num</button>
+          </div>
+        </form>
+        <div class="progress-track"><div class="progress-fill" style="width:{{.ProgressPct}}%"></div></div>
+        {{if .LastReadAbs}}
+        <p class="progress-meta" title="Last read {{.LastReadAbs}}">Last read {{.LastReadRel}}{{if gt .ProgressPct 0}} · {{.ProgressPct}}%{{end}}</p>
+        {{else}}
+        <p class="progress-meta">Last read {{.LastReadRel}}{{if gt .ProgressPct 0}} · {{.ProgressPct}}%{{end}}</p>
+        {{end}}
+        {{if and .PaceRate .PaceDate}}
+        <p class="pace-line" title="Extrapolated from your reading rate over the last 14 days">Pace {{.PaceRate}} → done ~{{.PaceDate}}</p>
+        {{end}}
+      </div>
+      {{/* ────────────── /Continue reading + chapter controls ────────────── */}}
+
+      <hr class="divider">
+
+      <section class="about-block">
+        <h2 class="block-title">About</h2>
+        {{if .Item.Description}}
+        <p class="detail-desc">{{.Item.Description}}</p>
+        {{else}}
+        <p class="detail-desc muted">No description.</p>
+        {{end}}
+        {{if .Item.Tags}}
+        <p class="detail-tags">
+          {{range .Item.Tags}}<a class="tag" href="/?tag={{.}}">{{.}}</a>{{end}}
+        </p>
+        {{end}}
+      </section>
+
+      <hr class="divider">
+
+      {{if or .Parent .Children}}
+      <section class="about-block related-block">
+        <h2 class="block-title">Related series</h2>
+        <ul class="related-list">
+          {{if .Parent}}
+          <li class="related-row"><span class="related-kind">Part of</span>
+            <a class="related-chip" href="/series/{{.Parent.ID}}">{{.Parent.Title}}</a></li>
+          {{end}}
+          {{range .Children}}
+          <li class="related-row"><span class="related-kind">Spinoff / related</span>
+            <a class="related-chip" href="/series/{{.ID}}">{{.Title}}</a></li>
+          {{end}}
+        </ul>
+      </section>
+
+      <hr class="divider">
+      {{end}}
+
+      <section class="tracking-block">
+        <h2 class="block-title">Your tracking</h2>
+        {{if .Item.Notes}}
+        <p class="notes-rendered">{{.Item.Notes}}</p>
+        {{end}}
+        <form method="post" action="/series/{{.Item.ID}}/entry">
+          <div class="form-row">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-input">
+              {{range .AllStatuses}}
+              <option value="{{.Value}}"{{if eq .Value (printf "%s" $.Item.Status)}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="rating">Rating (1-10)</label>
+            <input id="rating" class="form-input ch-input" type="number" name="rating" min="1" max="10" value="{{intStr .Item.Rating}}" placeholder="—">
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="notes">Notes / review</label>
+            <textarea id="notes" class="notes-field" name="notes" rows="3" placeholder="Why you liked it, why you dropped it, where you left off...">{{.Item.Notes}}</textarea>
+          </div>
+
+          <div class="form-row form-row-2col">
+            <div>
+              <label class="form-label" for="bookmark_label">Bookmark label</label>
+              <input id="bookmark_label" class="form-input" type="text" name="bookmark_label" value="{{.Item.BookmarkLabel}}" placeholder="Chapter 143">
+            </div>
+            <div>
+              <label class="form-label" for="bookmark_url">Bookmark URL</label>
+              <input id="bookmark_url" class="form-input" type="url" name="bookmark_url" value="{{.Item.BookmarkURL}}" placeholder="https://...">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Save changes</button>
+            <a class="btn-ghost" href="/series/{{.Item.ID}}/edit">Edit metadata</a>
+          </div>
+        </form>
+        <form class="inline" method="post" action="/series/{{.Item.ID}}/delete" onsubmit="return confirm('Delete {{.Item.Title}}? This removes its tracking data too.');">
+          <button type="submit" class="btn-danger">Delete series</button>
+        </form>
+      </section>
+
+      {{/* ── Per-series reading history ── one row per chapter update
+          (from the chapter_log table), newest first. Collapsed by default:
+          it's a diary, not a dashboard. The summary also carries the
+          "chapters this week" figure so the count is visible without
+          expanding. */}}
+      <details class="history-block" data-history="1">
+        <summary>Reading history{{if gt .WeekChapters 0}} <span class="history-week">· {{.WeekChapters}} chapter{{if gt .WeekChapters 1}}s{{end}} this week</span>{{end}}</summary>
+        {{if .Log}}
+        <ul class="history-list">
+          {{range .Log}}
+          <li class="history-row"{{if .WhenAbs}} title="{{.WhenAbs}}"{{end}}>
+            <span class="history-when">{{.When}}</span>
+            <span class="history-ch">{{.Ch}}</span>
+            {{if .Delta}}<span class="history-delta{{if hasPrefix .Delta "+"}} history-delta-up{{end}}">{{.Delta}}</span>{{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <p class="muted history-empty">No updates logged yet — +1 and Set on this page record the timeline.</p>
+        {{end}}
+      </details>
+    </div>
+  </div>
+</section>
+
+{{template "footer" .}}
+{{end}}

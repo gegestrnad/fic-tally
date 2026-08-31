@@ -1,0 +1,25 @@
+{
+  "name": "Fic Tally — Reading Tracker",
+  "short_name": "Fic Tally",
+  "description": "Self-hosted reading tracker for manga, manhwa and novels: progress, ratings, notes and stats.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#15181d",
+  "theme_color": "#15181d",
+  "icons": [
+    {
+      "src": "/static/img/icon.png?v=1",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/img/apple-touch-icon.png?v=1",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

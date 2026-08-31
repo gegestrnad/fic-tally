@@ -1,0 +1,102 @@
+{{define "import.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <a class="back-btn" href="/">&larr; Library</a>
+  <h1 class="page-title">Batch import</h1>
+  <p class="muted">Paste CSV or JSON, or upload a <code>.csv</code> / <code>.json</code> file. Everything is written in one transaction; duplicates follow the policy below. Max 1000 rows per request.</p>
+
+  <div class="import-layout">
+    <form class="import-form" method="post" action="/import" enctype="multipart/form-data">
+      <div class="form-row">
+        <label class="form-label" for="file">Upload file (.csv / .json)</label>
+        <input id="file" class="form-input form-input-wide" type="file" name="file" accept=".csv,.json,text/csv,application/json">
+        <p class="muted">If a file is chosen it takes precedence over the pasted text.</p>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="payload">Or paste CSV / JSON</label>
+        <textarea id="payload" class="notes-field form-input-wide import-textarea" name="payload" rows="10" placeholder="title,type,author,status,chapter_num,rating,tags
+Solo Leveling,manhwa,Chugong,reading,89,9,Action|Fantasy
+Cradle,light novel,Will Wight,completed,12,8,Progression"></textarea>
+      </div>
+
+      <div class="form-row form-row-2col">
+        <div>
+          <label class="form-label" for="dup_policy">Duplicates</label>
+          <select id="dup_policy" name="dup_policy" class="form-input">
+            <option value="skip"{{if eq .Policy "skip"}} selected{{end}}>Skip exact duplicates</option>
+            <option value="update"{{if eq .Policy "update"}} selected{{end}}>Update existing entries</option>
+            <option value="create"{{if eq .Policy "create"}} selected{{end}}>Create anyway (allow duplicates)</option>
+          </select>
+        </div>
+        <div class="form-row-check">
+          <input type="checkbox" id="dry_run" name="dry_run"{{if .DryRun}} checked{{end}}>
+          <label class="check-label" for="dry_run">Dry run (validate only, write nothing)</label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Import</button>
+        <a class="btn-ghost" href="/">Cancel</a>
+      </div>
+    </form>
+
+    <aside class="import-help">
+      <h2 class="block-title">CSV columns</h2>
+      <p class="muted">First line must be a header containing at least <code>title</code>. Other columns (all optional):</p>
+      <p class="mono-note">title, alt_titles, type, author, year,<br>pub_status, description, tags,<br>source_url, cover_url, parent_id,<br>total_chapters, total_is_known, status,<br>chapter_num, chapter_label, rating,<br>notes, bookmark_url, bookmark_label</p>
+      <h2 class="block-title">Notes</h2>
+      <ul class="help-list">
+        <li>Tags separate on commas, semicolons, or pipes.</li>
+        <li>Alternative titles separate on newlines, semicolons, or pipes (not commas).</li>
+        <li><code>pub_status</code> values: ongoing, completed, hiatus, cancelled — the IDs shown in mono on the <a href="/options">options page</a> (custom options you added there are valid too).</li>
+        <li><code>total_is_known</code> accepts true/1/yes/on.</li>
+        <li>JSON uses the same field names as <a href="/export/json">the JSON export</a> — export backs up, import restores.</li>
+        <li>Fuzzy near-matches (translated titles) are flagged in the results but still imported.</li>
+        <li>Scripting? <code>POST /api/series/batch</code> takes the same JSON over HTTP — one request, one transaction.</li>
+      </ul>
+    </aside>
+  </div>
+
+  {{if .Error}}
+  <div class="import-error">
+    <p>{{.Error}}</p>
+  </div>
+  {{end}}
+
+  {{if .Results}}
+  <section class="import-results">
+    <h2 class="block-title">{{if .DryRun}}Dry-run results (nothing was written){{else}}Import results — {{.ImportedFormat}} from {{.ImportSource}}{{end}}</h2>
+    <p class="stat-inline">
+      <span><strong>{{.Summary.Created}}</strong> created</span>
+      <span class="sep">&middot;</span>
+      <span><strong>{{.Summary.Updated}}</strong> updated</span>
+      <span class="sep">&middot;</span>
+      <span><strong>{{.Summary.Skipped}}</strong> skipped</span>
+      <span class="sep">&middot;</span>
+      <span><strong>{{.Summary.Failed}}</strong> failed</span>
+    </p>
+    <div class="table-wrap">
+      <table class="results-table">
+        <thead>
+          <tr><th>#</th><th>Title</th><th>Action</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+          {{range .Results}}
+          <tr>
+            <td class="mono">{{.Index}}</td>
+            <td>{{if .ID}}<a href="/series/{{.ID}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</td>
+            <td><span class="action action-{{.Action}}">{{.Action}}</span></td>
+            <td class="muted">{{.Message}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{end}}
+</section>
+
+{{template "footer" .}}
+{{end}}

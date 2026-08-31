@@ -1,0 +1,51 @@
+{{define "options.html"}}
+{{template "header" .}}
+
+<section class="view">
+  <a class="back-btn" href="/">&larr; Library</a>
+  <h1 class="page-title">Dropdown options</h1>
+  <p class="muted">These lists power every dropdown — the add &amp; edit forms, the library filters, the bulk-status picker and the stats breakdowns. Rename labels freely: the <strong>value</strong> underneath (shown in <span class="mono">mono</span>) is the permanent ID used by the database, URLs and CSV/JSON import, so existing series, shelves and exports keep working no matter what you rename. Built-in options the app relies on are locked against removal; any other option can be removed once no series uses it.</p>
+
+  {{if .Saved}}
+  <div class="opt-saved" role="status">Options saved — every dropdown, card and stat now uses the new lists.</div>
+  {{end}}
+
+  <form method="post" action="/options/save" class="opt-form">
+    {{range .Sections}}
+    <section class="opt-section">
+      <h2 class="block-title">{{.Title}}</h2>
+      <p class="muted opt-hint">{{.Hint}}</p>
+      <div class="opt-rows">
+        {{range .Rows}}
+        <div class="opt-row{{if .Protected}} opt-protected{{end}}">
+          <span class="opt-value" title="Import ID — used by CSV/JSON import, filter URLs and the database. It never changes.">{{.Value}}</span>
+          <input class="opt-label-input" type="text" name="label_{{.Field}}_{{.Value}}" value="{{.Label}}" maxlength="40" required aria-label="Label for {{.Value}}">
+          <input class="opt-pos" type="number" name="pos_{{.Field}}_{{.Value}}" value="{{.Pos}}" min="1" max="99" aria-label="Position of {{.Value}}" title="Display order (lowest first)">
+          {{if .Protected}}
+          <span class="opt-lock" title="Built-in option — the stats page, completion tracking or the new-series default rely on it. Its label can be renamed, but it can't be removed.">built-in</span>
+          {{else if gt .InUse 0}}
+          <span class="opt-inuse" title="Reassign these series first (e.g. via Select multiple on the library page), then remove the option.">{{.InUse}} in use</span>
+          {{else}}
+          <label class="opt-del" title="Remove this option from every dropdown">
+            <input type="checkbox" name="del_{{.Field}}_{{.Value}}" value="1"> remove
+          </label>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
+      <div class="opt-add">
+        <input class="opt-add-input" type="text" name="add_{{.Field}}" placeholder="Add a new option — e.g. {{.AddExample}}" maxlength="40" aria-label="Add a new {{.Title}} option">
+        <span class="muted opt-add-note">its ID becomes the lowercased label; new options are appended</span>
+      </div>
+    </section>
+    {{end}}
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save options</button>
+      <a class="btn-ghost" href="/">Cancel</a>
+    </div>
+  </form>
+</section>
+
+{{template "footer" .}}
+{{end}}
