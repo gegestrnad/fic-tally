@@ -1,13 +1,7 @@
 # Fic Tally — Reading Tracker
 
 A lightweight, self-hosted manga/novel reading tracker. Single user, no
-accounts, no forums, no release feeds. Implements the spec at
-`reading-tracker-spec-rev1.md` (kept in the project upload folder, not
-included here for brevity).
-
-> Formerly named **Tsundoku** — renamed to Fic Tally. An existing
-> `tsundoku.db` is picked up automatically on first run (nothing is renamed
-> behind your back); new databases are `fic-tally.db`.
+accounts, no forums, no release feeds.
 
 ## What's inside
 
@@ -112,7 +106,7 @@ This README is the entry point. Detailed documentation lives in
   the batch API's JSON request/response shapes.
 - [**Data Model**](./docs/DATA_MODEL.md) — Series + Entry fields, the
   SQLite schema (incl. `parent_id`, `completed_at`, `daily_reads`), enum
-  values, and the rationale for the spec's field-split decisions.
+  values, and the rationale for the field-split design decisions.
 - [**Development**](./docs/DEVELOPMENT.md) — build, run, test, and
   common-change patterns, plus gotchas (CSS escaping, driver name,
   `time.Time` zero value).
@@ -121,6 +115,8 @@ This README is the entry point. Detailed documentation lives in
   user-directed additions (stats page, grouping, import/export).
 
 ## Build
+
+Requires Go 1.25+ (see `go.mod`).
 
 ```sh
 CGO_ENABLED=0 go build -o fic-tally .
@@ -137,20 +133,19 @@ the import in `sqlite_store.go` and the driver name from `"sqlite"` to
 ```sh
 ./fic-tally                              # defaults: 127.0.0.1:4242, ./fic-tally.db
 ./fic-tally -addr 127.0.0.1:7531 -db /var/lib/fic-tally/db.sqlite
-./fic-tally -addr 0.0.0.0:4242          # LAN-accessible (no auth; per spec)
+./fic-tally -addr 0.0.0.0:4242          # LAN-accessible (no auth — single-user app)
 ```
 
 Open `http://127.0.0.1:4242/` in a browser. The library is seeded with two
 example series on first run (Iron Tide + Moonlit Cartographer) — delete
-them from the UI whenever you're ready. If a `tsundoku.db` from an earlier
-build exists, it is used as-is (schema columns are migrated automatically).
+them from the UI whenever you're ready.
 
 ## Flags
 
 | Flag          | Default      | Purpose                                            |
 |---------------|--------------|----------------------------------------------------|
 | `-addr`       | `127.0.0.1:4242` | `host:port` to listen on                       |
-| `-db`         | `fic-tally.db` (falls back to `tsundoku.db` if only that exists) | SQLite database file path |
+| `-db`         | `fic-tally.db` | SQLite database file path |
 | `-templates`  | `templates`  | Templates directory (Glob `*.html`)                |
 | `-static`     | `static`     | Static assets directory (CSS/JS/uploaded covers)  |
 
@@ -171,7 +166,6 @@ fic_tally/
 ├── api.go              POST /api/series/batch (JSON batch API)
 ├── stats.go            /stats dashboard computation
 ├── backup.go           GET /backup — zipped full backup (VACUUM INTO snapshot + covers)
-├── fic-tally           prebuilt static binary (linux/amd64)
 ├── fic-tally.db        SQLite DB (created on first run)
 ├── README.md           this file — entry point
 ├── scripts/smoke_test.sh  44-group end-to-end test suite
@@ -184,7 +178,7 @@ fic_tally/
 ├── templates/
 │   ├── layout.html     shared header/footer partials
 │   ├── library.html    library grid + filter toolbar + shelves + bulk bar
-│   ├── detail.html     series detail (Continue reading first per spec + history)
+│   ├── detail.html     series detail (Continue reading first + history)
 │   ├── edit.html       add / edit series metadata form
 │   ├── stats.html      reading statistics dashboard
 │   ├── import.html     CSV/JSON batch import page
@@ -265,11 +259,11 @@ chapter progress. In the detail view it appears on the cover; the
 progress bar beneath the chapter input is a secondary indicator for
 clarity.
 
-Detail-view priority is per spec: **chapter counter + Continue reading
+Detail-view priority is deliberate: **chapter counter + Continue reading
 CTA appear first**, with description/tags/notes BELOW — the most common
 action on a series page is resuming the book, not editing metadata.
 
-## Non-goals (per spec)
+## Non-goals
 
 - No chapter release tracking
 - No notifications
@@ -278,8 +272,8 @@ action on a series page is resuming the book, not editing metadata.
 - No recommendation engine
 - No automatic manga scraping
 - No crawler / multi-source aggregation
-- No web-novel auto-fill in this build (the spec mentions paste-a-URL
-  autofill but references an external scraper; not implemented here)
+- No web-novel auto-fill (a paste-a-URL autofill would need an external
+  scraper; not implemented)
 - Reading-history analytics: relaxed **by user request** — the stats page
   computes aggregates from data the tracker already keeps (one
   `daily_reads` counter row per day). See
