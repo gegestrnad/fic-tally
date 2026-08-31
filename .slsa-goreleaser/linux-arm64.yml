@@ -1,0 +1,7 @@
+# SLSA Go builder config (slsa-framework/slsa-github-generator v2.x)
+version: 1
+env:
+  - CGO_ENABLED=0
+goos: linux
+goarch: arm64
+binary: fic-tally-linux-arm64

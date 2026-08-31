@@ -1,0 +1,7 @@
+# SLSA Go builder config (slsa-framework/slsa-github-generator v2.x)
+version: 1
+env:
+  - CGO_ENABLED=0
+goos: darwin
+goarch: amd64
+binary: fic-tally-darwin-amd64

@@ -1,8 +1,0 @@
-# SLSA Go builder configuration (slsa-framework/slsa-github-generator)
-# Docs: https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/go/README.md#configuration-file
-project_name: fic-tally
-build:
-  main: .
-  binary: fic-tally
-env:
-  CGO_ENABLED: "0"
