@@ -599,6 +599,54 @@ html[data-emblem-pos="br"] .spread-cover .emblem-complete { bottom:8px; right:8p
 .dup-list a:hover { color:var(--ribbon-400); }
 .dup-actions { display:flex; gap:10px; margin:0; }
 
+/* ───────── MangaUpdates lookup panel ─────────
+   The panel re-renders in four states (search box / results / applied /
+   error) inside the same container, so the layout is a simple vertical
+   stack. It mirrors the dup-warning chrome (banner + list) so the two
+   "informational panel above the form" components read as one family. */
+.mu-panel {
+  background:var(--ink-850); border:1px solid var(--ink-700); border-left:3px solid var(--ink-700);
+  border-radius:8px; padding:14px 16px; margin-bottom:20px;
+}
+.mu-title { font-size:13px; font-weight:600; margin:0 0 10px; display:flex; align-items:baseline; gap:8px; }
+.mu-sub { font-size:10px; font-weight:400; text-transform:uppercase; letter-spacing:.06em; }
+.mu-search-form { display:flex; gap:8px; margin-top:12px; }
+.mu-query { flex:1; }
+.mu-banner {
+  border-radius:6px; padding:10px 12px; font-size:13px; line-height:1.5;
+  margin-top:10px; border:1px solid var(--ink-700); background:var(--ink-950);
+}
+.mu-banner-error { border-left:3px solid var(--status-hold); }
+.mu-banner-ok { border-left:3px solid var(--status-done); }
+.mu-results { list-style:none; margin:12px 0 0; padding:0; }
+.mu-result {
+  display:flex; align-items:center; gap:12px; padding:8px 0;
+  border-bottom:1px solid var(--ink-700);
+}
+.mu-result:last-child { border-bottom:none; }
+.mu-thumb { width:36px; height:54px; flex:none; display:flex; align-items:center; justify-content:center; }
+.mu-thumb img { width:36px; height:54px; object-fit:cover; border-radius:4px; border:1px solid var(--ink-700); }
+.mu-thumb-empty {
+  width:36px; height:54px; display:flex; align-items:center; justify-content:center;
+  background:var(--ink-950); border:1px solid var(--ink-700); border-radius:4px;
+  font-family:'Spectral',serif; font-size:18px; color:var(--paper-400);
+}
+.mu-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.mu-hit-title { font-size:14px; font-weight:500; }
+.mu-hit-meta { font-size:12px; }
+.mu-current {
+  font-style:normal; font-size:10px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--status-done); border:1px solid var(--status-done); border-radius:10px;
+  padding:2px 8px; margin-left:8px; white-space:nowrap;
+}
+.mu-confirm-form { margin:0; flex:none; }
+.mu-use { white-space:nowrap; }
+@media (max-width:640px) {
+  .mu-result { flex-wrap:wrap; }
+  .mu-confirm-form { width:100%; }
+  .mu-use { width:100%; }
+}
+
 /* ───────── related series ───────── */
 .related-list { list-style:none; margin:0; padding:0; }
 .related-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }

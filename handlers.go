@@ -432,6 +432,11 @@ func (a *app) handleAddForm(w http.ResponseWriter, r *http.Request) {
                 "AllPubStatuses": a.pubStatusOptions(),
                 "AllSeries":     a.seriesOptions(""),
                 "AllTags":       a.allTags(), // feeds the tag autocomplete (data-tags)
+                // MU lookup panel (mu_handlers.go): fresh state with the
+                // add-form action URLs, so the search box is live on first
+                // paint. A lookup POST re-renders this same form with
+                // Hits/Error/Applied attached.
+                "MU": muEmptyViewModel("/series/new/lookup"),
         })
 }
 
@@ -458,6 +463,11 @@ func (a *app) handleEditForm(w http.ResponseWriter, r *http.Request) {
                 "AllTags":       a.allTags(),          // feeds the tag autocomplete (data-tags)
                 "HasCover":      item.CoverURL != "",
                 "CoverSrc":      coverSrc(item.Series),
+                // MU lookup panel (mu_handlers.go): fresh state with the
+                // per-series action URLs, so the search box is live on
+                // first paint; MUCurrentID is set by muFormBase for the
+                // lookup re-renders and marks the series' current link.
+                "MU": muEmptyViewModel("/series/" + id + "/lookup"),
         })
 }
 

@@ -49,6 +49,55 @@
     </div>
 
     <div class="edit-right">
+      {{with .MU}}
+      {{/* MangaUpdates lookup panel (mu.go / mu_handlers.go). Rendered above
+          the form on every state: the search box, the result list after a
+          Lookup, the applied confirmation, or an inline error. It never
+          touches the main form's submit — every action here posts to its
+          own /lookup route, which re-renders this same page. */}}
+      <div class="mu-panel" id="mu-panel">
+        <h2 class="mu-title">MangaUpdates lookup
+          <span class="muted mu-sub">data &copy; MangaUpdates</span></h2>
+        {{if .Error}}
+        <div class="mu-banner mu-banner-error" role="alert">{{.Error}}</div>
+        {{end}}
+        {{if .Applied}}
+        <div class="mu-banner mu-banner-ok" role="status">{{.Applied}}</div>
+        {{end}}
+        {{if .Hits}}
+        <ul class="mu-results">
+          {{range .Hits}}
+          <li class="mu-result">
+            <span class="mu-thumb">
+              {{if .CoverURL}}
+              <img src="{{.CoverURL}}" alt="" loading="lazy">
+              {{else}}
+              <span class="mu-thumb-empty">{{firstChar .Title}}</span>
+              {{end}}
+            </span>
+            <span class="mu-info">
+              <span class="mu-hit-title">
+                {{.Title}}
+                {{/* "current" marker: the edit form's series already points
+                    at this MU series (SourceURL slug = this series_id). */}}
+                {{if eq .SeriesID $.MUCurrentID}}<em class="mu-current">current</em>{{end}}
+              </span>
+              <span class="muted mu-hit-meta">{{.Type}}{{if .Year}}, {{.Year}}{{end}}</span>
+            </span>
+            <form class="mu-confirm-form" method="post" action="{{$.MU.Confirm}}">
+              <input type="hidden" name="series_id" value="{{.SeriesID}}">
+              <button type="submit" class="btn-ghost mu-use">Use this</button>
+            </form>
+          </li>
+          {{end}}
+        </ul>
+        {{end}}
+        <form class="mu-search-form" method="post" action="{{.Lookup}}">
+          <input class="form-input mu-query" type="text" name="query" value="{{.Query}}" placeholder="Series title on MangaUpdates, e.g. Naruto" autocomplete="off">
+          <button type="submit" class="btn-search">Lookup</button>
+        </form>
+      </div>
+      {{end}}
       <form method="post" action="{{.FormAction}}" class="edit-form">
         {{if .DupWarning}}
         <div class="dup-warning">

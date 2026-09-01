@@ -19,16 +19,18 @@ import (
 )
 
 // app holds the singletons the handlers need: the Store, the parsed templates,
-// the cover-image directory (so the upload handler can write to it), and the
+// the cover-image directory (so the upload handler can write to it), the
 // user-editable dropdown option lists (options.go) cached in memory and
-// swapped wholesale on save.
+// swapped wholesale on save, and the MangaUpdates client (mu.go) for the
+// metadata lookup on the add/edit forms.
 type app struct {
-        store    Store
-        tpl      *template.Template
-        coverDir string // absolute path to static/covers/
+	store    Store
+	tpl      *template.Template
+	coverDir string // absolute path to static/covers/
+	mu       *muClient
 
-        optsMu sync.RWMutex
-        opts   optionLists // reading-status / type / publication-status options
+	optsMu sync.RWMutex
+	opts   optionLists // reading-status / type / publication-status options
 }
 
 // render wraps the template execution with the base layout. The layout
@@ -243,6 +245,13 @@ func newServer(a *app) *http.ServeMux {
         mux.HandleFunc("GET /series/new", a.handleAddForm)
         mux.HandleFunc("POST /series/new", a.handleAddSubmit)
 
+        // MangaUpdates metadata lookup on the add form (mu.go). The lookup
+        // routes re-render the form — they never save. /series/new/lookup
+        // is 3 segments after /series, so the {id} patterns (2 segments)
+        // below can't shadow it.
+        mux.HandleFunc("POST /series/new/lookup", a.handleNewLookup)
+        mux.HandleFunc("POST /series/new/lookup/confirm", a.handleNewLookupConfirm)
+
         // Series detail (read + quick progress + entry edit)
         mux.HandleFunc("GET /series/{id}", a.handleDetail)
         mux.HandleFunc("POST /series/{id}/progress", a.handleProgress)
@@ -251,6 +260,11 @@ func newServer(a *app) *http.ServeMux {
         // Series metadata edit form / submit
         mux.HandleFunc("GET /series/{id}/edit", a.handleEditForm)
         mux.HandleFunc("POST /series/{id}/edit", a.handleEditSubmit)
+
+        // MangaUpdates metadata lookup on the edit form (mu.go) — same
+        // re-render-only contract as the add-form variant above.
+        mux.HandleFunc("POST /series/{id}/lookup", a.handleLookup)
+        mux.HandleFunc("POST /series/{id}/lookup/confirm", a.handleLookupConfirm)
 
         // Cover upload / delete / set-by-URL
         mux.HandleFunc("POST /series/{id}/cover", a.handleCoverUpload)
@@ -348,7 +362,7 @@ func main() {
         // option-label template funcs close over it. initOptions loads (or
         // seeds) the dropdown vocabularies first — label rendering and every
         // downstream request depend on them.
-        a := &app{store: store, coverDir: coverDir}
+        a := &app{store: store, coverDir: coverDir, mu: newMUClient()}
         a.initOptions()
 
         tpl, err := loadTemplates(a, *tplDir)
