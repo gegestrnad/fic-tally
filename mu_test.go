@@ -69,10 +69,10 @@ func TestMuIDFromSourceURL(t *testing.T) {
                 {"https://www.mangaupdates.com/series/7z3yqqk/naruto", 17360452316},
                 {"https://www.mangaupdates.com/series/7z3yqqk/naruto/", 17360452316},
                 {"https://www.mangaupdates.com/series/7z3yqqk/naruto?edit=true", 17360452316},
-                {"https://myanimepage.example/series/7z3yqqk/naruto", 0},   // wrong host, same path shape
-                {"https://www.mangaupdates.com/series/n-1/naruto", 0},       // hyphen is not base36
+                {"https://myanimepage.example/series/7z3yqqk/naruto", 0},      // wrong host, same path shape
+                {"https://www.mangaupdates.com/series/n-1/naruto", 0},         // hyphen is not base36
                 {"https://www.mangaupdates.com/series/12345/naruto", 1776965}, // all-digit slug decodes as base36 (12345 → 1776965)
-                {"https://www.mangaupdates.com/series/7z3yqqk", 0},          // no title segment after slug
+                {"https://www.mangaupdates.com/series/7z3yqqk", 0},            // no title segment after slug
                 {"https://example.com/anime/naruto", 0},
                 {"", 0},
                 {"   ", 0},
@@ -104,8 +104,8 @@ func TestMuMapType(t *testing.T) {
         }
 }
 
-func boolPtr(b bool) *bool { return &b }
-func intPtr(i int) *int    { return &i }
+func boolPtr(b bool) *bool        { return &b }
+func intPtr(i int) *int           { return &i }
 func floatPtr(f float64) *float64 { return &f }
 
 func TestMuPubStatus(t *testing.T) {
@@ -114,16 +114,16 @@ func TestMuPubStatus(t *testing.T) {
                 status    string
                 want      PubStatus
         }{
-                {boolPtr(true), "", PubCompleted},                       // flag wins, empty text
-                {boolPtr(true), "Ongoing", PubCompleted},                // flag wins over text
+                {boolPtr(true), "", PubCompleted},        // flag wins, empty text
+                {boolPtr(true), "Ongoing", PubCompleted}, // flag wins over text
                 {boolPtr(false), "Ongoing", PubOngoing},
                 {nil, "Ongoing", PubOngoing},
                 {nil, "On Hiatus", PubHiatus},
                 {nil, "Cancelled", PubCancelled},
                 {nil, "Discontinued", PubCancelled},
-                {nil, "72 Volumes (Complete)", PubCompleted},            // text fallback for null flag
-                {nil, "", ""},                                           // nothing to go on
-                {nil, "Something else entirely", ""},                    // don't guess
+                {nil, "72 Volumes (Complete)", PubCompleted}, // text fallback for null flag
+                {nil, "", ""},                        // nothing to go on
+                {nil, "Something else entirely", ""}, // don't guess
                 {boolPtr(false), "", ""},
         }
         for i, c := range cases {
@@ -156,11 +156,11 @@ func TestMuAltTitles(t *testing.T) {
         rec := &muSeriesRecord{
                 Title: "Naruto",
                 Associated: []muAssocTitle{
-                        {Title: "NARUTO"},                  // case-insensitive dup of main → dropped
+                        {Title: "NARUTO"}, // case-insensitive dup of main → dropped
                         {Title: "Naruto: Shippūden"},
-                        {Title: "Naruto: Shippūden"},       // exact dup → dropped
-                        {Title: "  Naruto: Shippuden  "},   // trimmed, different case → kept
-                        {Title: ""},                        // empty → dropped
+                        {Title: "Naruto: Shippūden"},     // exact dup → dropped
+                        {Title: "  Naruto: Shippuden  "}, // trimmed, different case → kept
+                        {Title: ""},                      // empty → dropped
                 },
         }
         want := []string{"Naruto: Shippūden", "Naruto: Shippuden"}
@@ -215,14 +215,14 @@ func TestMuApplyCompleted(t *testing.T) {
         rec.Image.URL.Original = "https://cdn.mangaupdates.com/covers/2/65/naruto.jpg"
 
         ser := Series{
-                ID:             "existing-id",
-                Title:          "Old Title",
-                Type:           TypeManhwa,
-                ParentID:       "parent-1",
-                SourceURL:      "https://example.com/old",
-                CoverURL:       "https://example.com/old-cover.jpg",
-                Tags:           []string{"Action", "Favorite"},
-                TotalIsKnown:   false,
+                ID:           "existing-id",
+                Title:        "Old Title",
+                Type:         TypeManhwa,
+                ParentID:     "parent-1",
+                SourceURL:    "https://example.com/old",
+                CoverURL:     "https://example.com/old-cover.jpg",
+                Tags:         []string{"Action", "Favorite"},
+                TotalIsKnown: false,
         }
         totalBefore := 123.0
         ser.TotalChapters = &totalBefore
@@ -263,12 +263,14 @@ func TestMuApplyCompleted(t *testing.T) {
                         t.Errorf("Tags = %v, want %v", ser.Tags, wantTags)
                 }
         }
-        // Completed → total set from latest_chapter.
-        if ser.TotalChapters == nil || *ser.TotalChapters != 700 {
-                t.Errorf("TotalChapters = %v, want 700", ser.TotalChapters)
+        // Completed, volume-only status → no chapter count in the status, so the
+        // total is left untouched (latest_chapter is a last-release figure and is
+        // never used as the total).
+        if ser.TotalChapters == nil || *ser.TotalChapters != 123 {
+                t.Errorf("TotalChapters = %v, want untouched 123", ser.TotalChapters)
         }
-        if !ser.TotalIsKnown {
-                t.Errorf("TotalIsKnown = false, want true")
+        if ser.TotalIsKnown {
+                t.Errorf("TotalIsKnown = true, want false (volume-only status states no chapter total)")
         }
         // Invariants: identity fields untouched.
         if ser.ID != "existing-id" || ser.ParentID != "parent-1" {
@@ -295,6 +297,111 @@ func TestMuApplyOngoingDoesNotSetTotal(t *testing.T) {
         }
         if ser.PubStatus != PubOngoing {
                 t.Errorf("PubStatus = %q, want ongoing", ser.PubStatus)
+        }
+}
+
+// TestMuApplyCompletedChapterStatusWins is the The Gamer regression: a
+// finished multi-volume work whose latest_chapter (44) is only the end of
+// the final volume — the total must come from the status text (511).
+func TestMuApplyCompletedChapterStatusWins(t *testing.T) {
+        rec := &muSeriesRecord{
+                Title:         "The Gamer",
+                Type:          "Manhwa",
+                Year:          "2013",
+                Status:        "511 Chapters (Complete)\n\n S1: 86 Chapters (01-86) + S1 epilogue (86.5)  \n S7: 44 Chapters (468-510)",
+                Completed:     boolPtr(true),
+                LatestChapter: intPtr(44), // end of volume 7, NOT the total
+        }
+        ser := Series{Title: "Old"}
+        muApply(&ser, rec, defaultOptionLists())
+        if ser.TotalChapters == nil || *ser.TotalChapters != 511 {
+                t.Errorf("TotalChapters = %v, want 511 (from status text, not latest_chapter 44)", ser.TotalChapters)
+        }
+        if !ser.TotalIsKnown {
+                t.Errorf("TotalIsKnown = false, want true")
+        }
+}
+
+func TestMuApplyCompletedNoTotalSourceLeavesTotal(t *testing.T) {
+        // Finished, but neither a "N Chapters (Complete)" status nor a positive
+        // latest_chapter: don't guess — existing total stays untouched.
+        rec := &muSeriesRecord{
+                Title:         "Mystery",
+                Type:          "Manga",
+                Status:        "3 Volumes (Complete)",
+                Completed:     boolPtr(true),
+                LatestChapter: intPtr(0),
+        }
+        ser := Series{Title: "Old"}
+        totalBefore := 99.0
+        ser.TotalChapters = &totalBefore
+        muApply(&ser, rec, defaultOptionLists())
+        if ser.TotalChapters == nil || *ser.TotalChapters != 99 {
+                t.Errorf("TotalChapters = %v, want untouched 99", ser.TotalChapters)
+        }
+        if ser.TotalIsKnown {
+                t.Errorf("TotalIsKnown must stay false")
+        }
+}
+
+func TestMuTotalChapters(t *testing.T) {
+        cases := []struct {
+                name string
+                rec  muSeriesRecord
+                want int
+        }{
+                {
+                        name: "season line must not be mistaken for the total (Muscle Joseon)",
+                        rec:  muSeriesRecord{Status: "132 Chapters (Hiatus)\nSeason 1: 57 Chapters (Complete)\nSeason 2: 75 Chapters (Complete)", LatestChapter: intPtr(133)},
+                        want: 0, // line 1 is a Hiatus (no Complete marker); the 57 season line must not win; no fallback
+                },
+                {
+                        name: "gamer chapter-complete status beats latest_chapter",
+                        rec:  muSeriesRecord{Status: "511 Chapters (Complete)\n\n S7: 44 Chapters (468-510)", LatestChapter: intPtr(44)},
+                        want: 511,
+                },
+                {
+                        name: "solo leveling with prologue",
+                        rec:  muSeriesRecord{Status: "200 Chapters + Prologue (Complete)\n15 Volumes (Complete)", LatestChapter: intPtr(201)},
+                        want: 200,
+                },
+                {
+                        name: "novel WN/SS chapters",
+                        rec:  muSeriesRecord{Status: "243 WN Chapters + 27 SS Chapters (Complete)"},
+                        want: 243,
+                },
+                {
+                        name: "thousands separator",
+                        rec:  muSeriesRecord{Status: "1,234 Chapters (Complete)"},
+                        want: 1234,
+                },
+                {
+                        name: "volume-only status states no chapter count (Naruto)",
+                        rec:  muSeriesRecord{Status: "72 Volumes (Complete)\n24 Combini-ban Volumes (Complete)", LatestChapter: intPtr(700)},
+                        want: 0, // latest_chapter is a last-release figure, never the total
+                },
+                {
+                        name: "no complete marker",
+                        rec:  muSeriesRecord{Status: "652 Chapters (Ongoing)\n18 Volumes (Ongoing)", LatestChapter: intPtr(235)},
+                        want: 0,
+                },
+                {
+                        name: "volume-only, zero latest",
+                        rec:  muSeriesRecord{Status: "3 Volumes (Complete)", LatestChapter: intPtr(0)},
+                        want: 0,
+                },
+                {
+                        name: "empty status",
+                        rec:  muSeriesRecord{Status: ""},
+                        want: 0,
+                },
+        }
+        for _, tc := range cases {
+                t.Run(tc.name, func(t *testing.T) {
+                        if got := muTotalChapters(&tc.rec); got != tc.want {
+                                t.Errorf("muTotalChapters = %d, want %d", got, tc.want)
+                        }
+                })
         }
 }
 
@@ -567,8 +674,11 @@ func (f *fakeStore) Save(s Series, e Entry, advance bool) error { f.call("Save")
 func (f *fakeStore) SaveAll(items []SaveItem) error             { f.call("SaveAll"); return nil }
 func (f *fakeStore) ReadDays() (map[string]int, error)          { f.call("ReadDays"); return nil, nil }
 func (f *fakeStore) Delete(id string) error                     { f.call("Delete"); return nil }
-func (f *fakeStore) Settings() (map[string]string, error)       { f.call("Settings"); return map[string]string{}, nil }
-func (f *fakeStore) SaveSettings(kv map[string]string) error    { f.call("SaveSettings"); return nil }
+func (f *fakeStore) Settings() (map[string]string, error) {
+        f.call("Settings")
+        return map[string]string{}, nil
+}
+func (f *fakeStore) SaveSettings(kv map[string]string) error { f.call("SaveSettings"); return nil }
 func (f *fakeStore) AppendLog(seriesID string, chapter *float64, label string, delta float64) error {
         f.call("AppendLog")
         return nil
@@ -577,11 +687,23 @@ func (f *fakeStore) ChapterLog(seriesID string) ([]ChapterLog, error) {
         f.call("ChapterLog")
         return nil, nil
 }
-func (f *fakeStore) Snapshot(dst string) error                    { f.call("Snapshot"); return nil }
-func (f *fakeStore) StatusUsage() (map[string]int, error)         { f.call("StatusUsage"); return map[string]int{}, nil }
-func (f *fakeStore) TypeUsage() (map[string]int, error)           { f.call("TypeUsage"); return map[string]int{}, nil }
-func (f *fakeStore) PubStatusUsage() (map[string]int, error)      { f.call("PubStatusUsage"); return map[string]int{}, nil }
-func (f *fakeStore) ClearPubStatusValue(value string) error       { f.call("ClearPubStatusValue"); return nil }
+func (f *fakeStore) Snapshot(dst string) error { f.call("Snapshot"); return nil }
+func (f *fakeStore) StatusUsage() (map[string]int, error) {
+        f.call("StatusUsage")
+        return map[string]int{}, nil
+}
+func (f *fakeStore) TypeUsage() (map[string]int, error) {
+        f.call("TypeUsage")
+        return map[string]int{}, nil
+}
+func (f *fakeStore) PubStatusUsage() (map[string]int, error) {
+        f.call("PubStatusUsage")
+        return map[string]int{}, nil
+}
+func (f *fakeStore) ClearPubStatusValue(value string) error {
+        f.call("ClearPubStatusValue")
+        return nil
+}
 
 // newTestApp builds a fully wired app: real templates from ./templates, the
 // fake store, and an MU client pointed at an httptest server. Returns the

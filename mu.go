@@ -36,6 +36,7 @@ import (
         "io"
         "net/http"
         "net/url"
+        "regexp"
         "strconv"
         "strings"
         "sync"
@@ -57,10 +58,10 @@ var muRetryBackoff = 1500 * time.Millisecond
 
 // muAuthor is one entry of a series record's authors array.
 type muAuthor struct {
-        Name    string `json:"name"`
-        AuthorID int64 `json:"author_id"`
-        URL     string `json:"url"`
-        Type    string `json:"type"` // "Author", "Artist", "Inker", ...
+        Name     string `json:"name"`
+        AuthorID int64  `json:"author_id"`
+        URL      string `json:"url"`
+        Type     string `json:"type"` // "Author", "Artist", "Inker", ...
 }
 
 // muGenre is one entry of the genres array.
@@ -93,9 +94,12 @@ type muAssocTitle struct {
 //   - Completed is bool OR null (json null → nil). Search results can have
 //     it null even for finished series, so callers re-fetch the full record
 //     before mapping (muApply is the single mapping point).
-//   - LatestChapter is the LATEST released chapter — for a finished series
-//     that is the final chapter; for an ongoing one it is merely the current
-//     chapter and must NOT be stored as a total.
+//   - LatestChapter is the chapter number of the LATEST release. For a
+//     single-run finished manga that is the final chapter, but for a
+//     multi-volume finished work it is only the end of the final volume
+//     ("The Gamer" reports 44 — the end of volume 7 — while its true total
+//     is 511; see muTotalChapters). For an ongoing series it is merely the
+//     current chapter. It is therefore never stored as a total on its own.
 type muSeriesRecord struct {
         SeriesID      int64          `json:"series_id"`
         Title         string         `json:"title"`
@@ -139,12 +143,12 @@ type muClient struct {
         httpClient *http.Client
         baseURL    string // overridable in tests (httptest)
 
-        mu     sync.Mutex
-        cache  map[string]muCacheEntry
+        mu    sync.Mutex
+        cache map[string]muCacheEntry
 }
 
 type muCacheEntry struct {
-        value   any     // []MUSeriesHit or *muSeriesRecord, by key prefix
+        value   any // []MUSeriesHit or *muSeriesRecord, by key prefix
         expires time.Time
 }
 
@@ -524,13 +528,55 @@ func muTagUnion(existing []string, genres []muGenre) []string {
 //	CoverURL      ← MU original image, EXCEPT a local upload wins
 //	Tags          ← existing ∪ genres (case-insensitive, existing first)
 //	SourceURL     ← record.url (anchors future lookups)
-//	TotalChapters ← ONLY when completed && latest_chapter != nil
+//	TotalChapters ← ONLY when completed AND the status text states an
+//	                "N Chapters (Complete)" count. A volume-only status
+//	                ("72 Volumes (Complete)") has no chapter count → total
+//	                left untouched (latest_chapter is a last-release figure,
+//	                never a total — see muTotalChapters)
 //	ParentID      ← never touched
 //
 // opts is the CURRENT user-editable option lists (options.go): a mapped
 // type or pub-status the user removed from their vocabulary is silently
 // dropped from the mapping rather than written as an orphaned value — the
 // exact guard readSeriesFromForm applies to form input.
+
+// muTotalChaptersCompleteRe is the editor-maintained chapter count in a
+// finished series' status text, e.g. "511 Chapters (Complete)" (The Gamer),
+// "200 Chapters + Prologue (Complete)" (Solo Leveling), or
+// "243 WN Chapters + 27 SS Chapters (Complete)". MU states this on the
+// FIRST line of the status field; it is the authoritative total for
+// finished works.
+//
+// latest_chapter is deliberately NOT used here: it is the chapter number of
+// the LAST *release* only. For a multi-volume work that is the final
+// volume's chapter (44 for The Gamer, which actually has 511), and for a
+// volume-only finished work it is often a small artifact (1, 5, …) — so it
+// must never be stored as the total.
+var muTotalChaptersCompleteRe = regexp.MustCompile(`(?i)\b(\d[\d,]*)\s+(?:WN\s+|SS\s+)?Chapters\b[^(]*\(Complete`)
+
+// muTotalChapters returns a finished series' total chapter count, or 0 when
+// MU's status text does not state one. Only the FIRST line of the status
+// text is consulted: MU puts the overall publication status on line 1 and
+// per-season / per-volume breakdowns after it ("132 Chapters (Hiatus)\n
+// Season 1: 57 Chapters (Complete)"), and a season line would be mistaken
+// for the total.
+//
+// A volume-only status ("72 Volumes (Complete)") has no chapter count, so
+// this returns 0 and the caller leaves the existing total untouched rather
+// than guessing from latest_chapter.
+func muTotalChapters(rec *muSeriesRecord) int {
+        status := rec.Status
+        if i := strings.IndexByte(status, '\n'); i >= 0 {
+                status = status[:i]
+        }
+        if m := muTotalChaptersCompleteRe.FindStringSubmatch(status); m != nil {
+                if n, err := strconv.Atoi(strings.ReplaceAll(m[1], ",", "")); err == nil && n > 0 {
+                        return n
+                }
+        }
+        return 0
+}
+
 func muApply(ser *Series, rec *muSeriesRecord, opts optionLists) {
         ser.Title = strings.TrimSpace(rec.Title)
         ser.AltTitles = muAltTitles(rec)
@@ -563,13 +609,17 @@ func muApply(ser *Series, rec *muSeriesRecord, opts optionLists) {
 
         ser.Tags = muTagUnion(ser.Tags, rec.Genres)
 
-        // Total chapters: only a finished series with a known last chapter sets
-        // the total. For ongoing series latest_chapter is the CURRENT chapter —
-        // storing it as the total would show "700" as final for a work still
-        // publishing, so both fields are left exactly as they were.
-        if rec.Completed != nil && *rec.Completed && rec.LatestChapter != nil {
-                v := float64(*rec.LatestChapter)
-                ser.TotalChapters = &v
-                ser.TotalIsKnown = true
+        // Total chapters: only a finished series gets a total. For ongoing
+        // series latest_chapter is the CURRENT chapter — storing it as the total
+        // would show "700" as final for a work still publishing — so both fields
+        // are left exactly as they were. For a finished series the total comes
+        // from muTotalChapters: the "N Chapters (Complete)" count in the status
+        // text when present, else latest_chapter (volume-only status).
+        if rec.Completed != nil && *rec.Completed {
+                if total := muTotalChapters(rec); total > 0 {
+                        v := float64(total)
+                        ser.TotalChapters = &v
+                        ser.TotalIsKnown = true
+                }
         }
 }
