@@ -291,7 +291,7 @@
             <p class="card-meta">
               <span class="dot {{statusDotClass (printf "%s" .Status)}}"></span>{{statusLabel .Status}}
             </p>
-            <p class="card-meta">{{.ChDisplay}} / {{.TotalDisplay}}{{if gt .ProgressPct 0}} · {{.ProgressPct}}%{{end}}</p>
+            <p class="card-meta">{{.ChDisplay}} / {{.TotalDisplay}}{{if gt .ProgressPct 0}} · {{.ProgressPct}}%{{end}}{{if .PubStatus}} · {{pubStatusLabel .PubStatus}}{{end}}</p>
             {{if .Rating}}<p class="card-meta card-extra card-rating">&#9733; {{intStr .Rating}}/10</p>{{end}}
             {{if .AltTitles}}<p class="card-extra card-aka">Aka: {{joinStr .AltTitles " · "}}</p>{{end}}
             {{if .Tags}}<p class="card-extra card-tags">{{range .Tags}}<span class="mini-tag{{if containsStr $.ActiveTags .}} tag-active{{end}}">{{.}}</span>{{end}}</p>{{end}}

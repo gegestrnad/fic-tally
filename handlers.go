@@ -150,35 +150,37 @@ func (a *app) handleLibrary(w http.ResponseWriter, r *http.Request) {
         }
 
         // Sort
-        sortFiltered(filtered, sort)
+        	sortFiltered(filtered, sort)
 
-        // Distinct tags for the tag-filter dropdown.
-        allTags := a.allTags()
+        	// Distinct tags for the tag-filter dropdown.
+        	allTags := a.allTags()
 
-        // For each item, precompute the cover URL the template should use
-        // (uploaded image if present, else empty string so the template falls
-        // back to the Spectral-serif initial placeholder).
-        type cardView struct {
-                EntryWithSeries
-                CoverSrc     string // "" means: render placeholder initial
-                ProgressPct  int    // 0-100, 0 if total unknown
-                ChDisplay    string // e.g. "142", "Extra 1", "Vol. 4 Ch. 2"
-                TotalDisplay string // e.g. "210+", "96", "—"
-                UpdatedRel   string // "2d ago", "just now", "3w ago"
-                UpdatedAbs   string // tooltip with the exact timestamp
-        }
-        cards := make([]cardView, 0, len(filtered))
-        for _, e := range filtered {
-                cards = append(cards, cardView{
-                        EntryWithSeries: e,
-                        CoverSrc:        coverSrc(e.Series),
-                        ProgressPct:     progressPct(e),
-                        ChDisplay:       chDisplay(e),
-                        TotalDisplay:    totalDisplay(e.Series),
-                        UpdatedRel:      relTime(e.Entry.LastReadAt, time.Now()),
-                        UpdatedAbs:      absTime(e.Entry.LastReadAt),
-                })
-        }
+        	now := time.Now()
+
+        	// For each item, precompute the cover URL the template should use
+        	// (uploaded image if present, else empty string so the template falls
+        	// back to the Spectral-serif initial placeholder).
+        	type cardView struct {
+        		EntryWithSeries
+        		CoverSrc     string // "" means: render placeholder initial
+        		ProgressPct  int    // 0-100, 0 if total unknown
+        		ChDisplay    string // e.g. "142", "Extra 1", "Vol. 4 Ch. 2"
+        		TotalDisplay string // e.g. "210+", "96", "—"
+        		UpdatedRel   string // "2d ago", "just now", "3w ago"
+        		UpdatedAbs   string // tooltip with the exact timestamp
+        	}
+        	cards := make([]cardView, 0, len(filtered))
+        	for _, e := range filtered {
+        		cards = append(cards, cardView{
+        			EntryWithSeries: e,
+        			CoverSrc:        coverSrc(e.Series),
+        			ProgressPct:     progressPct(e),
+        			ChDisplay:       chDisplay(e),
+        			TotalDisplay:    totalDisplay(e.Series),
+        			UpdatedRel:      relTime(e.Entry.LastReadAt, now),
+        			UpdatedAbs:      absTime(e.Entry.LastReadAt),
+        		})
+        	}
 
         // Removable chips for every active tag filter — both the ?tag=
         // list and the #tag search tokens — so multi-tag filtering has a
@@ -275,22 +277,22 @@ func (a *app) handleDetail(w http.ResponseWriter, r *http.Request) {
         }
 
         // Related series: the parent plus everything whose parent_id is this
-        // series (spinoffs/sequels). Fetched with one List() and filtered here —
-        // single-user library sizes make a dedicated query unnecessary.
-        var parent *EntryWithSeries
-        var children []EntryWithSeries
-        if item.ParentID != "" {
-                if p, err := a.store.Get(item.ParentID); err == nil {
-                        parent = p
-                }
-        }
-        if all, err := a.store.List(); err == nil {
-                for _, e := range all {
-                        if e.ParentID == id {
-                                children = append(children, e)
-                        }
-                }
-        }
+        	// series (spinoffs/sequels). One List() call gathers all entries; the
+        	// parent lookup is folded into it. For single-user libraries this
+        	// avoids an extra Get() round-trip.
+        	var parent *EntryWithSeries
+        	var children []EntryWithSeries
+        	if all, err := a.store.List(); err == nil {
+        		for i := range all {
+        			e := &all[i]
+        			if e.ParentID == id {
+        				children = append(children, *e)
+        			}
+        			if item.ParentID != "" && e.ID == item.ParentID {
+        				parent = e
+        			}
+        		}
+        	}
 
         // Per-series reading history: the newest entries for the timeline,
         // the count of chapters read in the last 7 days, and (when the
@@ -299,11 +301,11 @@ func (a *app) handleDetail(w http.ResponseWriter, r *http.Request) {
         if err != nil {
                 log.Printf("[warn] chapter log for %s: %v", id, err) // history is auxiliary
         }
-        now := time.Now()
-        var logViews []logEntryView
-        weekChapters := 0
-        weekCutoff := now.AddDate(0, 0, -7)
-        for _, l := range history {
+        now := time.Now().UTC()
+        	var logViews []logEntryView
+        	weekChapters := 0
+        	weekCutoff := now.AddDate(0, 0, -7)
+        	for _, l := range history {
                 ch := "—"
                 if l.Label != "" {
                         ch = l.Label
@@ -339,7 +341,7 @@ func (a *app) handleDetail(w http.ResponseWriter, r *http.Request) {
                 "ProgressPct":   progressPct(*item),
                 "ChDisplay":     chDisplay(*item),
                 "TotalDisplay":  totalDisplay(item.Series),
-                "LastReadRel":   relTime(item.LastReadAt, time.Now()),
+                "LastReadRel":   relTime(item.LastReadAt, now),
                 "LastReadAbs":   absTime(item.LastReadAt),
                 "AllStatuses":   a.statusOptions(),
                 "AllTypes":      a.typeOptions(),
@@ -826,34 +828,54 @@ func (a *app) handleEntryEdit(w http.ResponseWriter, r *http.Request) {
 // Save path is reused verbatim, so completed_at transitions and updated_at
 // bumps behave exactly like a single-series edit from the detail page.
 func (a *app) handleBulkStatus(w http.ResponseWriter, r *http.Request) {
-        if err := r.ParseForm(); err != nil {
-                a.serverError(w, r, "parse bulk form", err)
-                return
-        }
-        status := r.PostFormValue("status")
-        if status == "" || !a.options().validStatus(status) {
-                http.Error(w, "pick a status to apply", http.StatusBadRequest)
-                return
-        }
-        for _, id := range r.PostForm["series_ids"] {
-                item, err := a.store.Get(id)
-                if err != nil {
-                        if errors.Is(err, ErrNotFound) {
-                                continue // deleted in another tab — not worth failing the batch
-                        }
-                        a.serverError(w, r, "bulk get "+id, err)
-                        return
-                }
-                item.Status = Status(status)
-                if err := a.store.Save(item.Series, item.Entry, false); err != nil {
-                        a.serverError(w, r, "bulk save "+id, err)
-                        return
-                }
-        }
-        // PRG back to the exact view the user was looking at (the bulk form
-        // carries the current query as a hidden "back" field — the form
-        // itself POSTs to /bulk/status with no query string).
-        back := r.PostFormValue("back")
+	if err := r.ParseForm(); err != nil {
+		a.serverError(w, r, "parse bulk form", err)
+		return
+	}
+	status := r.PostFormValue("status")
+	if status == "" || !a.options().validStatus(status) {
+		http.Error(w, "pick a status to apply", http.StatusBadRequest)
+		return
+	}
+
+	// Gather all selected series IDs, then bulk-load them in one List() call
+	// and mutate the slice in memory. This avoids N+1 Get/Save round-trips
+	// and ensures the completed_at transition fires consistently for every
+	// entry in a single transaction.
+	ids := r.PostForm["series_ids"]
+	if len(ids) == 0 {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	// Batch-get all selected series at once.
+	all, err := a.store.List()
+	if err != nil {
+		a.serverError(w, r, "list for bulk status", err)
+		return
+	}
+	byID := make(map[string]*EntryWithSeries, len(all))
+	for i := range all {
+		byID[all[i].ID] = &all[i]
+	}
+
+	var batch []SaveItem
+	for _, id := range ids {
+		item, ok := byID[id]
+		if !ok {
+			continue // deleted in another tab
+		}
+		item.Status = Status(status)
+		batch = append(batch, SaveItem{Series: item.Series, Entry: item.Entry, Advance: false})
+	}
+	if err := a.store.SaveAll(batch); err != nil {
+		a.serverError(w, r, "bulk save", err)
+		return
+	}
+		// PRG back to the exact view the user was looking at (the bulk form
+		// carries the current query as a hidden "back" field — the form
+		// itself POSTs to /bulk/status with no query string).
+		back := r.PostFormValue("back")
         if back != "" && strings.HasPrefix(back, "?") {
                 http.Redirect(w, r, "/"+back, http.StatusSeeOther)
                 return

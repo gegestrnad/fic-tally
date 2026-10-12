@@ -137,7 +137,7 @@
     Which icon shows (check or star) is decided client-side by CSS on
     html[data-emblem-style]; both SVGs are rendered so switching is instant. */ -}}
 {{define "complete-emblem"}}
-{{if and (eq (printf "%s" .Status) "completed") (eq (printf "%s" .PubStatus) "completed")}}
+{{if and (eq (printf "%s" .Status) "completed") (or (eq (printf "%s" .PubStatus) "completed") (eq (printf "%s" .PubStatus) "cancelled"))}}
 <span class="emblem-complete" role="img" aria-label="Fully completed — reading and publication both finished" title="Fully completed — reading and publication both finished">
 <svg class="em-icon-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l4.5 4.5L19.5 7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 <svg class="em-icon-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.85 6.1 6.7.85-4.95 4.55 1.3 6.6L12 17.5l-5.9 3.2 1.3-6.6L2.45 9.55l6.7-.85z" fill="currentColor"/></svg>
